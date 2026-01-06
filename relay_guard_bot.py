@@ -22,6 +22,9 @@ Setup:
 """
 
 import asyncio
+import os
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime, timedelta
 from telegram import Update, ChatPermissions, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -29,6 +32,28 @@ from telegram.ext import (
     ContextTypes, filters, CallbackQueryHandler
 )
 from telegram.constants import ParseMode
+
+
+# === KEEP-ALIVE SERVER ===
+class HealthHandler(BaseHTTPRequestHandler):
+    """Simple health check endpoint for Render"""
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b'Relay Guard Bot OK')
+    
+    def log_message(self, format, *args):
+        pass  # Suppress logs
+
+
+def start_health_server():
+    """Start health check server in background thread"""
+    port = int(os.environ.get('PORT', 8080))
+    server = HTTPServer(('0.0.0.0', port), HealthHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    print(f"   Health server: http://0.0.0.0:{port}")
 
 from config import (
     BOT_TOKEN, ADMIN_IDS, MUTE_DURATION_MINUTES, BAN_DURATION_DAYS,
@@ -943,6 +968,9 @@ def main():
         return
     
     print("🚔 Relay Guard Bot starting...")
+    
+    # Start health server for Render
+    start_health_server()
     
     app = Application.builder().token(BOT_TOKEN).build()
     
