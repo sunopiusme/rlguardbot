@@ -40,8 +40,10 @@ class MessageAnalyzer:
     
     # Offensive words (basic list, extend as needed)
     OFFENSIVE_PATTERNS = [
-        r"\b(idiot|stupid|dumb|moron|loser)\b",
-        r"\b(идиот|тупой|дурак|лох)\b",
+        r"\b(idiot|stupid|dumb|moron|loser|fuck|shit|ass|bitch|bastard|damn)\b",
+        r"\b(идиот|тупой|дурак|лох|блять|сука|хуй|пиздец|ебать|нахуй)\b",
+        r"\bfuck\s*(you|off|this)?\b",
+        r"\bshut\s*up\b",
     ]
     
     def __init__(self):
@@ -172,18 +174,117 @@ class MessageAnalyzer:
     def _check_harassment(self, text_lower: str) -> Optional[AnalysisResult]:
         """Check for harassment or insults"""
         
-        for pattern in self.OFFENSIVE_PATTERNS:
+        # First check if message is positive about Relay (allow casual swearing)
+        positive_indicators = [
+            "love", "best", "great", "awesome", "amazing", "thank", "thanks",
+            "helpful", "cool", "nice", "good", "perfect", "excellent",
+            "better", "life", "installed", "works", "working", "helped",
+            "люблю", "лучший", "круто", "спасибо", "класс", "супер", "отлично",
+            "помог", "работает", "установил"
+        ]
+        
+        relay_keywords = [
+            "relay",  # Only Relay specifically, not generic "app"
+        ]
+        
+        has_positive = any(word in text_lower for word in positive_indicators)
+        
+        # "this app" in Relay group = talking about Relay
+        # "the app" in Relay group = talking about Relay  
+        this_app_context = ("this app" in text_lower or "the app" in text_lower or 
+                           "это приложение" in text_lower or "этот апп" in text_lower)
+        
+        has_relay = "relay" in text_lower or this_app_context
+        
+        # Check for "other app" - NOT a defender
+        mentions_other = "other app" in text_lower or "another app" in text_lower or "другое приложение" in text_lower
+        
+        # DEFENDER MODE: If defending Relay, allow harsh language
+        # Pattern: "shut up" + positive about Relay = defending the app
+        defending_patterns = [
+            "you dont know", "you don't know", "ты не знаешь",
+            "you're wrong", "you are wrong", "ты не прав",
+            "actually", "на самом деле",
+            "better", "лучше",
+            "try it", "попробуй"
+        ]
+        
+        is_defending = any(p in text_lower for p in defending_patterns)
+        
+        # If mentions "other app" - NOT a defender, even with positive words
+        if mentions_other:
+            has_relay = False
+            is_defending = False
+        
+        # If defending Relay with positive context - allow it
+        # Must specifically mention "relay" not just "app" or "this app"
+        if (has_positive or is_defending) and has_relay and not mentions_other:
+            return None  # Defender gets a pass
+        
+        # If positive context about Relay, be more lenient
+        if has_positive and has_relay:
+            return None  # Allow casual language in positive feedback
+        
+        # Check if swearing is directed AT someone (harassment)
+        # But only if NOT defending Relay
+        directed_patterns = [
+            r"\byou.{0,10}(idiot|stupid|dumb|moron|loser|suck)",
+            r"\b(fuck|screw)\s*(you|off)\b",
+            r"\bshut\s*up\b",
+            r"\bты.{0,10}(идиот|тупой|дурак|лох)",
+            r"\b(иди|пошел)\s*(нахуй|в жопу)",
+            # Direct insults
+            r"\byou.{0,10}bitch\b",
+            r"\bpe+a*ce\s*of\s*(bitch|shit|crap)\b",  # peace/piece of X
+            r"\bpiece\s*of\s*(bitch|shit|crap)\b",
+            r"\bson\s*of\s*a?\s*bitch\b",
+        ]
+        
+        for pattern in directed_patterns:
             if re.search(pattern, text_lower, re.IGNORECASE):
+                # Double check - if message also has Relay positive, it's defending
+                if has_relay and (has_positive or is_defending):
+                    return None  # Defender
+                
                 return AnalysisResult(
                     is_violation=True,
                     violation_type="harassment",
-                    confidence=0.85,
-                    reason="Offensive language detected",
+                    confidence=0.9,
+                    reason="Directed insult or harassment detected",
                     should_delete=True,
                     should_warn=True,
                     should_mute=False,
                     should_ban=False
                 )
+        
+        # General offensive but not directed - lower confidence, just warn
+        offensive_patterns = [
+            r"\b(idiot|stupid|dumb|moron|loser|fuck|shit|ass|bitch|bastard|damn)\b",
+            r"\b(идиот|тупой|дурак|лох|блять|сука|хуй|пиздец|ебать|нахуй)\b",
+            r"\bfuck\s*(you|off|this)?\b",
+            r"\bshut\s*up\b",
+            # Common evasions
+            r"\bpiece\s*of\s*(shit|crap|garbage)\b",
+            r"\bpe+a*ce\s*of\s*(bitch|shit)\b",  # peace/piece of bitch
+            r"\bson\s*of\s*a?\s*(bitch|whore)\b",
+            r"\b(f+u+c+k+|sh+i+t+|b+i+t+c+h+)\b",  # stretched words
+            r"you.{0,5}(suck|stink|smell)\b",
+        ]
+        
+        for pattern in offensive_patterns:
+            if re.search(pattern, text_lower, re.IGNORECASE):
+                # Only flag if it seems aggressive (short message, no context)
+                if len(text_lower) < 30 and not has_relay:
+                    return AnalysisResult(
+                        is_violation=True,
+                        violation_type="harassment",
+                        confidence=0.6,
+                        reason="Potentially offensive language",
+                        should_delete=False,
+                        should_warn=True,
+                        should_mute=False,
+                        should_ban=False
+                    )
         
         return None
     

@@ -1,18 +1,16 @@
 # Environment
 .env
-*.env.local
+*.env
 
-# Data
+# Data files (contain user info)
 data/
 
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
+*.pyo
 .Python
-venv/
-.venv/
+*.so
 
 # IDE
 .idea/
@@ -20,5 +18,6 @@ venv/
 *.swp
 *.swo
 
-# Logs
-*.log
+# OS
+.DS_Store
+Thumbs.db
