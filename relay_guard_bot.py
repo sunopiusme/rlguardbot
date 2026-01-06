@@ -215,6 +215,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
     
+    # Log chat ID for setup (remove after getting ID)
+    chat = update.effective_chat
+    if chat.type in ["group", "supergroup"]:
+        print(f"📍 Group detected: {chat.title} | ID: {chat.id}")
+    
     # Skip messages from admins
     if update.effective_user.id in ADMIN_IDS:
         return

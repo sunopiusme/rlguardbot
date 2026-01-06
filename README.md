@@ -27,14 +27,21 @@ Autonomous moderation bot for Relay community chat. Keeps the community safe and
    - Ban users
    - Restrict members
 
-### 3. Configure
+### 3. Get Group ID
+
+After adding the bot to your group:
+1. Send any message in the group
+2. Check bot console output for: `📍 Group detected: GroupName | ID: -100xxxxxxxxxx`
+3. Copy the ID (starts with `-100`)
+
+### 4. Configure
 
 ```bash
 cp .env.example .env
 # Edit .env with your bot token and group ID
 ```
 
-### 4. Install & Run
+### 5. Install & Run
 
 ```bash
 pip install -r requirements.txt
